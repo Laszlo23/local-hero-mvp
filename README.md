@@ -63,6 +63,23 @@ Production-ready MVP scaffold for a Web3 community platform where users complete
    npm run dev
    ```
 
+## CI
+
+GitHub Actions runs on every push/PR to `main`:
+- Prisma client generation
+- ESLint
+- Production build
+
+Workflow file: `.github/workflows/ci.yml`
+
+## Deploy to Vercel
+
+Deploy directly from GitHub:
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Laszlo23/local-hero-mvp)
+
+`vercel.json` is included for consistent install/build commands.
+
 ## Security and Anti-Abuse
 
 - Redis-backed API rate limiting
