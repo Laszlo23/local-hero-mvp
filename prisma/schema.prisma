@@ -1,0 +1,220 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  SPONSOR
+  ADMIN
+}
+
+enum UserLevel {
+  ROOKIE
+  HELPER
+  BUILDER
+  CHAMPION
+  LOCAL_HERO
+}
+
+enum QuestType {
+  HELP
+  LEARN
+  MOVE
+  AR_HUNT
+  BUSINESS_SPONSORED
+}
+
+enum QuestStatus {
+  DRAFT
+  PENDING_APPROVAL
+  ACTIVE
+  ARCHIVED
+}
+
+enum SubmissionStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  FLAGGED
+}
+
+enum LeaderboardPeriod {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+model User {
+  id               String         @id @default(cuid())
+  privyUserId      String?        @unique
+  walletAddress    String?        @unique
+  email            String?        @unique
+  username         String         @unique
+  avatarUrl        String?
+  role             UserRole       @default(USER)
+  level            UserLevel      @default(ROOKIE)
+  xp               Int            @default(0)
+  heroScore        Int            @default(0)
+  trustScore       Int            @default(0)
+  questsCompleted  Int            @default(0)
+  tokensEarned     Decimal        @default(0) @db.Decimal(18, 6)
+  isBanned         Boolean        @default(false)
+  banReason        String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  submissions      Submission[]
+  ideas            Idea[]
+  votes            Vote[]
+  rewardLedger     RewardLedger[]
+  leaderboards     Leaderboard[]  @relation("LeaderboardUser")
+  sponsoredQuests  Quest[]        @relation("QuestSponsorOwner")
+  sponsorProfile   Sponsor?
+
+  @@index([walletAddress])
+  @@index([heroScore])
+}
+
+model Sponsor {
+  id             String   @id @default(cuid())
+  name           String
+  description    String?
+  website        String?
+  logoUrl        String?
+  rewardDetails  String?
+  approved       Boolean  @default(false)
+  ownerId        String?  @unique
+  owner          User?    @relation(fields: [ownerId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  quests         Quest[]
+
+  @@index([approved])
+}
+
+model Quest {
+  id                       String        @id @default(cuid())
+  title                    String
+  description              String
+  type                     QuestType
+  status                   QuestStatus   @default(PENDING_APPROVAL)
+  rewardXp                 Int
+  rewardTokens             Decimal       @db.Decimal(18, 6)
+  latitude                 Decimal       @db.Decimal(10, 7)
+  longitude                Decimal       @db.Decimal(10, 7)
+  radius                   Int
+  aiVerificationRequired   Boolean       @default(true)
+  sponsorId                String?
+  sponsor                  Sponsor?      @relation(fields: [sponsorId], references: [id])
+  sponsorOwnerId           String?
+  sponsorOwner             User?         @relation("QuestSponsorOwner", fields: [sponsorOwnerId], references: [id])
+  approvedByAdminId        String?
+  submissions              Submission[]
+  rewardLedgerEntries      RewardLedger[]
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
+
+  @@index([type, status])
+  @@index([latitude, longitude])
+  @@index([sponsorId])
+}
+
+model Submission {
+  id                   String           @id @default(cuid())
+  userId               String
+  questId              String
+  imageUrl             String
+  videoUrl             String?
+  textProof            String?
+  imageHash            String?
+  duplicateOfId        String?
+  status               SubmissionStatus @default(PENDING)
+  aiVerified           Boolean          @default(false)
+  aiConfidence         Float?
+  aiReason             String?
+  aiVerificationHash   String?
+  spamScore            Float            @default(0)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  user                 User             @relation(fields: [userId], references: [id])
+  quest                Quest            @relation(fields: [questId], references: [id])
+  rewardLedgerEntries  RewardLedger[]
+
+  @@index([userId, questId])
+  @@index([status, createdAt])
+  @@index([imageHash])
+}
+
+model Idea {
+  id              String    @id @default(cuid())
+  ideaTitle       String
+  ideaDescription String
+  authorId        String
+  votesUp         Int       @default(0)
+  votesDown       Int       @default(0)
+  commentsCount   Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  author          User      @relation(fields: [authorId], references: [id])
+  votes           Vote[]
+
+  @@index([votesUp, votesDown])
+}
+
+model Vote {
+  id         String   @id @default(cuid())
+  ideaId     String
+  userId     String
+  value      Int
+  createdAt  DateTime @default(now())
+  idea       Idea     @relation(fields: [ideaId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([ideaId, userId])
+  @@index([ideaId, value])
+}
+
+model RewardLedger {
+  id                String   @id @default(cuid())
+  userId            String
+  submissionId      String
+  questId           String
+  userWallet        String
+  rewardAmount      Decimal  @db.Decimal(18, 6)
+  verificationHash  String
+  chainTxHash       String?
+  claimTxHash       String?
+  claimed           Boolean  @default(false)
+  claimedAt         DateTime?
+  timestamp         DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  quest             Quest    @relation(fields: [questId], references: [id])
+  user              User     @relation(fields: [userId], references: [id])
+  submission        Submission @relation(fields: [submissionId], references: [id])
+
+  @@index([userId, timestamp])
+  @@index([questId])
+  @@index([claimed])
+}
+
+model Leaderboard {
+  id               String            @id @default(cuid())
+  period           LeaderboardPeriod
+  seasonLabel      String
+  rank             Int
+  userId           String
+  heroScore        Int
+  questsCompleted  Int
+  communityVotes   Int
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  user             User              @relation("LeaderboardUser", fields: [userId], references: [id])
+
+  @@unique([period, seasonLabel, rank])
+  @@index([period, seasonLabel, userId])
+}
